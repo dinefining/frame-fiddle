@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Frame Jockey</title>
+<meta name="description" content="Edit video with gestures. Drop in a clip and scratch, loop, smear and mash it with your hands, without a timeline.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Frame Jockey">
+<meta property="og:description" content="Edit video with gestures. Drop in a clip and scratch, loop, smear and mash it with your hands, without a timeline.">
+<meta property="og:url" content="https://dinefining.github.io/frame-jockey/">
+<meta property="og:image" content="https://dinefining.github.io/frame-jockey/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Frame Jockey">
+<meta name="twitter:description" content="Edit video with gestures. Drop in a clip and scratch, loop, smear and mash it with your hands, without a timeline.">
+<meta name="twitter:image" content="https://dinefining.github.io/frame-jockey/og.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="topbar">
+  <div class="tl">
+    <button id="btn-tool" type="button" class="cell" title="Pick an effect (t, or double-tap the video)" disabled>Effects</button>
+    <div id="stack"></div>
+    <button id="btn-reset" type="button" class="cell ib" title="Turn every effect off (x)" aria-label="Reset" hidden><svg class="ic" viewBox="0 0 16 16"><path d="M2.5 8a5.5 5.5 0 1 0 1.6-3.9M3.5 1.5v3h3"/></svg><span class="lbl">Reset</span></button>
+  </div>
+  <span id="mode" hidden></span>
+  <span id="time"></span>
+</div>
+  <span id="mode" hidden></span>
+  <span id="time"></span>
+</div>
+
+<main id="stage">
+  <div id="surface" hidden>
+    <canvas id="screen" width="640" height="360"></canvas>
+    <canvas id="overlay"></canvas>
+    <div id="wheel" hidden><div id="wheel-list"></div></div>
+  </div>
+  <button id="intro" type="button" aria-label="Open a video"><span class="plus"></span></button>
+  <span id="demo" hidden></span>
+  <div id="status" hidden></div>
+</main>
+
+<footer>
+  <div class="left">
+    <button id="btn-new" type="button" class="ib" title="Open a video (o)" aria-label="Upload"><svg class="ic" viewBox="0 0 16 16"><path d="M8 2.5v11M2.5 8h11"/></svg><span class="lbl">Upload</span></button>
+    <button id="btn-fit" type="button" class="ib" title="Fill the screen or show the whole frame (f)" aria-label="Fit"><svg class="ic" viewBox="0 0 16 16"><path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10"/></svg><span class="lbl">Fit</span></button>
+    <button id="btn-sound" type="button" class="ib on" title="Sound on or off (m)" aria-label="Sound"><svg class="ic" viewBox="0 0 16 16"><path d="M2.5 6h2.5l3.5-3.5v11L5 10H2.5z"/><path class="snd" d="M10.5 5a4 4 0 0 1 0 6M12.5 3a7 7 0 0 1 0 10"/><path class="mute" d="M10.5 6l3 4M13.5 6l-3 4"/></svg><span class="lbl">Sound</span></button>
+    <button id="btn-grid" type="button" class="ib on" title="Axes and their labels on or off (g)" aria-label="Axes"><svg class="ic" viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="11" height="11"/><path d="M8 2.5v11M2.5 8h11"/></svg><span class="lbl">Axes</span></button>
+    <button id="btn-rec" type="button" class="ib" title="Record what you play (r)" aria-label="Record" disabled><svg class="ic" viewBox="0 0 16 16"><circle class="dotc" cx="8" cy="8" r="5.5"/><rect class="sq" x="3" y="3" width="10" height="10"/></svg><span class="lbl">Rec</span></button>
+  </div>
+  <div class="right">
+    <button id="btn-bg" type="button" title="White or black background (b)" aria-label="Switch to a black background"></button>
+    <button id="btn-info" type="button" class="ib" title="How it works (i)" aria-label="Info"><svg class="ic" viewBox="0 0 16 16"><g class="i-i"><rect class="sq2" x="7.25" y="2.5" width="1.5" height="1.5"/><path d="M6 6.5h2v7M5.5 13.5h5"/></g><path class="i-x" d="M3 3l10 10M13 3 3 13"/></svg><span class="lbl">Info</span></button>
+  </div>
+</footer>
+
+<div id="recdlg" hidden>
+  <div class="rd" role="dialog" aria-label="Recording">
+    <button id="rd-save" type="button" class="cell">Download</button>
+    <button id="rd-drop" type="button" class="cell">Discard</button>
+  </div>
+</div>
+
+<div id="info" hidden>
+  <div class="card" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="info-title">
+    <div class="card-head">
+      <h2 id="info-title"><b>Frame Jockey</b><span class="tag"><span class="sl">/</span>Edit video with gestures</span></h2>
+    </div>
+    <div class="card-body">
+      <section class="sec">
+        <h3>Basics</h3>
+        <table>
+          <tr><th>Tap</th><td>Play / pause</td></tr>
+          <tr><th>Double-tap</th><td>Tool wheel (also: scroll, two-finger tap, <kbd>t</kbd>)</td></tr>
+          <tr><th>Drag</th><td>Use the tool. The edges say what left–right and up–down do</td></tr>
+          <tr><th>Two thumbs</th><td>One runs a tool, the other scratches</td></tr>
+        </table>
+      </section>
+      <section class="sec">
+        <h3>Scratch</h3>
+        <table>
+          <tr><th>Sideways</th><td>Scratch; let go to throw</td></tr>
+          <tr><th>Up</th><td>Fast-forward</td></tr>
+          <tr><th>Down</th><td>Stutter; distance sets the loop</td></tr>
+          <tr><th>Diagonal</th><td>Slit-scan</td></tr>
+          <tr><th>Circle</th><td>Loop; counter-clockwise bounces</td></tr>
+          <tr><th>Hold</th><td>Freeze; then move to paint that moment</td></tr>
+          <tr><th>Shake</th><td>Shuffle</td></tr>
+        </table>
+      </section>
+      <section class="sec">
+        <h3>Tools</h3>
+        <table>
+          <tr><th class="g-time">Time</th><td>Scratch, Speed, Echo, Slit-scan, Time brush, Stop-motion, Ripple, RGB time, Long exposure</td></tr>
+          <tr><th class="g-colour">Colour</th><td>Grade, Hue, Duotone, Crush, Solarize, 1-bit, Thermal, VHS, Outline</td></tr>
+          <tr><th class="g-space">Space</th><td>Zoom, Kaleido, Smear, Pixelate, Tile, Wave, Tunnel, Pixel sort, Rutt-Etra, Halftone</td></tr>
+          <tr><th class="g-mash">Mash</th><td>Motion only, Datamosh, Blend B, Key B (load a second clip first)</td></tr>
+        </table>
+      </section>
+      <section class="sec">
+        <h3>Bar</h3>
+        <table>
+          <tr><th>Rec</th><td>Record what you play. Stop, then download it or let it go</td></tr>
+          <tr><th>Axes</th><td>Guide lines and edge labels, on or off</td></tr>
+          <tr><th>Fit</th><td>Whole frame or fill the screen</td></tr>
+          <tr><th>Top</th><td>Effect picker, active effects (click one to remove it), reset and time</td></tr>
+        </table>
+      </section>
+      <section class="sec">
+        <h3>Keys</h3>
+        <div class="keys">
+          <span><kbd>space</kbd>play</span><span><kbd>t</kbd>tools</span><span><kbd>r</kbd>rec</span><span><kbd>x</kbd>reset</span><span><kbd>m</kbd>sound</span><span><kbd>g</kbd>axes</span><span><kbd>f</kbd>fit</span><span><kbd>b</kbd>background</span><span><kbd>esc</kbd>release loop</span><span><kbd>o</kbd>open</span><span><kbd>d</kbd>demo</span><span><kbd>p</kbd>replay last recording's moves</span>
+        </div>
+      </section>
+      <section class="sec">
+        <h3></h3>
+        <p class="credit">A <a class="mark m-time" href="https://maybemachines.com" target="_blank" rel="noopener">Maybe Machine</a> by <a class="mark m-space" href="https://ravipopat.info" target="_blank" rel="noopener">Ravi Popat</a>.</p>
+      </section>
+    </div>
+  </div>
+</div>
+
+<input id="file" type="file" accept="video/*" hidden>
+<script src="app.js"></script>
+</body>
+</html>

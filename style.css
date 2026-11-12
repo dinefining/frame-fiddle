@@ -1,0 +1,472 @@
+/* the picture fills the room; flat grey blocks around it; one mono face, square everything */
+:root {
+  color-scheme: light;
+  --bg: #ffffff;
+  --ink: #111111;
+  --dim: #8a8a8a;
+  --block: #e6e6e6;      /* info card */
+  --block-hi: #d4d4d4;
+  --cell: #ffffff;       /* buttons and chips: snug cells with shared 1px edges */
+  --cell-ink: #111111;
+  --cell-line: #111111;
+  --cell-off: #e2e2e2;
+  --cell-off-ink: #9a9a9a;
+  --cell-th: #f2f2f2;
+  --stage: #ffffff;      /* around the picture; the dot button switches it to black */
+  --stage-ink: #111111;
+  --line: #111111;
+  --red: #e5372b;
+  --on: #00a356;          /* a switched-on cell: its text turns green */
+  --font: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+* { box-sizing: border-box; border-radius: 0; }
+
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); }
+@supports (height: 100dvh) { body { height: 100dvh; } }   /* the visible height on phones, toolbars excluded */
+
+body {
+  font-family: var(--font);
+  font-size: 13px;
+  line-height: 1.45;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+button { font: inherit; color: inherit; }
+
+.dim { color: var(--dim); }
+
+/* ---- stage: the picture, edge to edge */
+
+#stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+#stage { background: var(--stage); }
+body.dark {
+  --stage: #111111; --stage-ink: #f2f2f2;
+  --cell: #111111; --cell-ink: #eeeeee; --cell-line: #5a5a5a; --cell-off: #222222; --cell-off-ink: #666666; --cell-th: #1b1b1b; --on: #3ee58a;
+}
+body.dark footer, body.dark #topbar { background: var(--stage); }
+
+#surface {
+  position: relative;
+  overflow: hidden;
+  touch-action: none;
+  cursor: none;
+  background: #000;
+}
+#surface[hidden] { display: none; }
+
+#screen { position: absolute; display: block; }
+
+#overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+#intro {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+#intro[hidden] { display: none; }
+/* only the plus itself reacts and opens the picker; the rest of the stage stays still */
+#intro { pointer-events: none; cursor: default; }
+#intro .plus { position: relative; width: 96px; height: 96px; pointer-events: auto; cursor: pointer; }
+#intro .plus::before, #intro .plus::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  background: #9a9a9a;
+  transform: translate(-50%, -50%);
+  transition: background .15s ease;
+}
+#intro .plus::before { width: 96px; height: 5px; }
+#intro .plus::after { width: 5px; height: 96px; }
+#intro .plus:hover::before, #intro .plus:hover::after, #intro:focus-visible .plus::before, #intro:focus-visible .plus::after,
+body.dragging #intro .plus::before, body.dragging #intro .plus::after { background: var(--stage-ink); }
+#intro:focus-visible { outline: 2px solid var(--ink); outline-offset: -8px; }
+body.dragging #surface { outline: 3px solid #fff; outline-offset: -3px; }
+
+#status {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  max-width: calc(100% - 32px);
+  width: max-content;
+  padding: 6px 12px;
+  background: var(--ink);
+  color: #fff;
+  text-align: center;
+  pointer-events: none;
+}
+#status[hidden] { display: none; }
+
+/* ---- top: the effect stack (left) and the clock (right) */
+
+#topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 40px;
+  padding: 8px max(12px, env(safe-area-inset-right, 0px)) 8px max(12px, env(safe-area-inset-left, 0px));
+  background: var(--stage);
+}
+body:not(.loaded) #topbar > * { visibility: hidden; }
+
+/* ---- wheel: text on the picture over a soft, edgeless blur */
+
+#wheel {
+  position: absolute;
+  width: 340px;
+  height: 330px;
+  transform: translate(-50%, -50%) scale(var(--ws, 1));
+  cursor: ns-resize;
+  touch-action: none;
+  perspective: 700px;
+}
+#wheel[hidden] { display: none; }
+/* a soft round blur behind the wheel, fading out with no edge */
+#wheel::before {
+  content: '';
+  position: absolute;
+  inset: -110px -150px;
+  background: radial-gradient(closest-side, rgba(255, 255, 255, .86), rgba(255, 255, 255, .6) 50%, rgba(255, 255, 255, 0));
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  -webkit-mask-image: radial-gradient(closest-side, #000 45%, transparent);
+  mask-image: radial-gradient(closest-side, #000 45%, transparent);
+  pointer-events: none;
+}
+#wheel-list {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 0;
+  transform-style: preserve-3d;
+}
+.wi {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -23px;
+  height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  color: var(--ink);
+  white-space: nowrap;
+  backface-visibility: hidden;
+  will-change: transform, opacity;
+}
+.wi::after {
+  content: '';
+  position: absolute;
+  left: 28%;
+  right: 28%;
+  bottom: 0;
+  height: 1px;
+  background: rgba(17, 17, 17, .14);
+}
+.wi > span { position: relative; }
+.wi small {
+  position: absolute;
+  left: calc(100% + 14px);
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--ink);
+  opacity: 0;
+}
+.wi.on { font-size: 27px; }
+.wi.on small { opacity: .8; }
+
+/* ---- cells: every button, chip and the clock is a snug box; neighbours share an edge */
+
+.cell, footer button, .fxchip, #time {
+  height: 24px;
+  margin: 0 0 0 -1px;
+  padding: 0 9px;
+  border: 1px solid var(--cell-line);
+  background: var(--cell);
+  color: var(--cell-ink);
+  font-size: 11px;
+  line-height: 22px;
+  white-space: nowrap;
+}
+footer button, .fxchip, button.cell { cursor: pointer; }
+/* green means on; hovering only greys a cell, so a switch shows its real state under the pointer */
+footer button.on, button.cell.on { color: var(--on); }
+footer button:hover:not(:disabled), button.cell:hover:not(:disabled) { background: var(--cell-th); }
+footer button:disabled, button.cell:disabled { background: var(--cell-off); color: var(--cell-off-ink); cursor: default; }
+footer button[hidden], button.cell[hidden] { display: none; }
+#btn-rec:not(.on):not(:disabled) { color: var(--red); }   /* idle: a red word, a red dot */
+#btn-rec.on { background: var(--red); color: #fff; }   /* the red sits inside the usual edge */
+button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+/* the first cell in a run keeps its own left edge */
+footer .left > :first-child, footer .controls > :first-child, footer .right > :first-child,
+#topbar .tl > :first-child { margin-left: 0; }
+
+#topbar .tl { display: flex; min-width: 0; }
+#btn-tool { flex: none; }
+#stack { display: flex; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+#stack:empty { display: none; }
+#stack .fxchip { margin-left: -1px; }
+#btn-reset { flex: none; }
+#stack::-webkit-scrollbar { display: none; }
+.fxchip { flex: none; display: inline-flex; align-items: center; gap: 7px; }
+/* the cross matches the text, and the whole chip turns red on hover: this removes it */
+.fxchip .x { font-size: 15px; line-height: 1; }
+.fxchip:hover, body.dark .fxchip:hover { background: var(--red); color: #fff; text-decoration: line-through; position: relative; z-index: 1; }
+#time { flex: none; margin-left: auto; font-variant-numeric: tabular-nums; }
+#time .rec { margin-left: 1.2em; color: var(--red); }
+#time:empty { display: none; }
+
+/* ---- the bar: files left, playing in the middle, help right */
+
+footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 8px max(12px, env(safe-area-inset-right, 0px)) max(12px, env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px));
+  background: var(--stage);
+}
+footer .left, footer .right { display: flex; min-width: 0; }
+footer .left button { flex: none; }
+footer .right { justify-content: flex-end; }
+/* bar buttons carry a word and an icon: words where there is room, icons on narrow screens */
+.ib .ic { display: none; width: 16px; height: 16px; margin: 0 auto; overflow: visible; fill: none; stroke: currentColor; stroke-width: 1.25; stroke-linecap: square; }
+.ib .ic .dotc, .ib .ic .sq2 { fill: currentColor; stroke: none; }
+.ib .ic .sq, #btn-sound .ic .mute { display: none; }
+#btn-sound:not(.on) .ic .snd { display: none; }
+#btn-sound:not(.on) .ic .mute { display: inline; }
+#btn-rec.on .ic .dotc { display: none; }
+#btn-rec.on .ic .sq { display: inline; fill: currentColor; stroke: none; }
+#btn-info .ic .i-x, #btn-info.open .ic .i-i { display: none; }
+#btn-info.open .ic .i-x { display: inline; }
+.rd .cell .dim { color: var(--dim); }
+
+/* after a recording: download it or let it go */
+#recdlg { position: absolute; inset: 0; z-index: 6; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, .35); }
+#recdlg[hidden] { display: none; }
+/* two equal buttons, one above the other, centred as a unit */
+.rd { display: flex; flex-direction: column; width: 168px; }
+.rd .cell { width: 100%; height: 36px; margin: -1px 0 0; font-size: 13px; line-height: 34px; text-align: center; }
+.rd > :first-child { margin-top: 0; }
+
+/* ---- info: a full-screen panel built on one spacing unit (--u). The title,
+   the close box, the rail of section names and the tables all sit on it. */
+
+/* info opens in the room between the two bars, on the bars' own margins;
+   the Info button turns into its close */
+#info {
+  --u: clamp(14px, 2vw, 24px);
+  position: fixed;
+  z-index: 20;
+  top: var(--bar-top, 40px);
+  bottom: var(--bar-bot, 40px);
+  left: 0;
+  right: 0;
+  display: flex;
+  padding: 0 max(12px, env(safe-area-inset-right, 0px)) 0 max(12px, env(safe-area-inset-left, 0px));
+  background: var(--stage);   /* the picture steps back completely */
+}
+#info[hidden] { display: none; }
+
+.card {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  border: 1px solid var(--cell-line);
+  background: var(--cell);
+  color: var(--cell-ink);
+  font-size: 12px;
+  line-height: 18px;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.card-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--u);
+  padding: var(--u);
+  border-bottom: 1px solid var(--cell-line);
+}
+.head-text { min-width: 0; }
+/* the title sits on the same rail as the section names: the name in the
+   rail, set like them; the line in grey where the tables start */
+.card h2 {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  column-gap: var(--u);
+  font-size: 12px;
+  line-height: 24px;
+  font-weight: 400;
+}
+.card h2 b { font-weight: 700; letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; }
+.card h2 .tag { color: var(--dim); }
+/* the slash only appears on phones, where name and line share one row */
+.card h2 .sl { display: none; }
+.card .sub { margin: 0; }
+/* credit links: a solid tool-colour highlight, always on */
+.card a.mark {
+  --m: 45, 91, 255;
+  color: #fff;
+  text-decoration: none;
+  padding: 0 3px;
+  background: rgb(var(--m));
+}
+.card a.m-space { --m: 255, 122, 0; }
+.card a.mark:focus-visible { outline: 1px solid var(--cell-ink); outline-offset: 1px; }
+/* the close box is an ordinary 24px cell */
+#info-close {
+  flex: none;
+  transform: translateZ(0); /* own layer: stops a half-repainted hover over the moving video */
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--cell-line);
+  background: var(--cell);
+  color: var(--cell-ink);
+  font-size: 15px;
+  line-height: 22px;
+  cursor: pointer;
+}
+#info-close:hover { background: var(--cell-ink); color: var(--cell); }
+#info-close:focus-visible { outline: 2px solid var(--cell-ink); outline-offset: 2px; }
+
+.card-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--u) * 1.5);
+  padding: var(--u);
+}
+/* each section: its name on a left rail, its content beside it */
+.sec {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  column-gap: var(--u);
+  align-items: start;
+}
+.card h3 {
+  margin: 0;
+  padding-top: 6px;
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+.card .lede, .card .credit { margin: 0; }
+.card .credit { color: var(--dim); }
+.card table { font: inherit; color: inherit; width: 100%; border-collapse: collapse; table-layout: fixed; }
+.card th, .card td { padding: 5px 9px; border: 1px solid var(--cell-line); text-align: left; vertical-align: top; }
+.card th { width: 108px; font-weight: 400; white-space: nowrap; background: var(--cell-th); color: var(--cell-ink); }
+.card th.g-time { color: rgb(45, 91, 255); }
+.card th.g-colour { color: rgb(0, 160, 94); }
+.card th.g-space { color: rgb(230, 106, 0); }
+.card th.g-mash { color: rgb(150, 64, 255); }
+/* on black the group colours are lifted so they keep their contrast */
+body.dark .card th.g-time { color: #8ea8ff; }
+body.dark .card th.g-colour { color: #4fe0a2; }
+body.dark .card th.g-space { color: #ffa65c; }
+body.dark .card th.g-mash { color: #c29bff; }
+.keys { display: flex; flex-wrap: wrap; gap: 8px var(--u); padding-top: 5px; }
+.keys span { display: inline-flex; align-items: center; gap: 6px; }
+kbd {
+  display: inline-block;
+  min-width: 20px;
+  padding: 0 5px;
+  border: 1px solid var(--cell-line);
+  background: var(--cell-th);
+  font: inherit;
+  line-height: 18px;
+  text-align: center;
+}
+
+/* phone: the rail folds away, names sit above their tables */
+@media (max-width: 640px) {
+  .sec { grid-template-columns: minmax(0, 1fr); row-gap: 8px; }
+  .card h3 { padding-top: 0; }
+  .card h3:empty { display: none; }
+  .card h2 { display: block; }
+  .card h2 .sl { display: inline; padding: 0 .6em; }
+}
+
+@media (max-width: 640px) {
+  /* narrow: the bar buttons turn into icons */
+  /* every icon button is a 24px square, every icon the same 11px drawing on a 16px grid */
+  footer .ib { width: 24px; padding: 0; }
+  footer .ib .ic { display: block; }
+  footer .ib .lbl { display: none; }
+  #btn-reset { width: 24px; padding: 0; }
+  #btn-reset .ic { display: block; }
+  #btn-reset .lbl { display: none; }
+  .fxchip, #time, #btn-tool { padding: 0 6px; font-size: 10px; }
+  .fxchip { gap: 5px; }
+}
+
+
+@media (max-width: 400px) {
+  footer { padding-left: 8px; padding-right: 8px; }
+  #topbar { padding-left: 8px; padding-right: 8px; gap: 8px; }
+  #info { padding-left: 8px; padding-right: 8px; }
+  .fxchip, #time, #btn-tool { padding: 0 4px; }
+  .card th { width: 96px; }
+}
+
+/* background toggle: a square cell with a circle filled in the current background */
+#btn-bg { width: 24px; padding: 0; position: relative; }
+#btn-bg::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 11px;
+  height: 11px;
+  transform: translate(-50%, -50%);
+  border: 1.25px solid currentColor;
+  border-radius: 50%;
+  background: var(--stage);
+}
+#btn-bg:hover::before { background: var(--cell); }
+
+
+.card:focus { outline: none; }
